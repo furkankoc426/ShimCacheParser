@@ -91,14 +91,51 @@ struct WINVISTA_64_Entry
 	DWORD shimFlags;
 };
 
+// COMMON WINXP
+const DWORD WINXP_HEADER_SIZE = 0x0190;
+const DWORD WINXP_MAGIC_NUMBER = 0xDEADBEEF;
+const DWORD WINXP_ENTRY_COUNT_OFFSET = 0x04; // will be added to WCHAR otherwise 0x08
+const DWORD WINXP_ENTRY_SIZE = 0x0228;
+const DWORD WINXP_FILE_OFFSET = 0x04;
+
+struct WINXP_Entry
+{   
+    WCHAR filePath[MAX_PATH+4];
+    FILETIME lastModTime;
+    LARGE_INTEGER fileSize;
+    FILETIME lastUpdateTime;
+};
+
 const DWORD WIN2K3_32_FILESIZE_OFFSET = 0x10;
 const DWORD WIN2K3_64_FILESIZE_OFFSET = 0x18;
 
-const DWORD WINXP_MAGIC_NUMBER = 0xDEADBEEF;
-
-BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize)
+BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
 {
+    FILE * file = fopen(fileName, "w");
+    fprintf(file, "FilePath;LastModifiedTime\n");
 
+    CHAR filePath[512];
+    UINT entryCount = *(UINT*)(dataBuffer + WINXP_ENTRY_COUNT_OFFSET);
+    PUCHAR index = dataBuffer + WINXP_HEADER_SIZE;
+    printf("entryCount: %d\n", entryCount);
+    UINT counter = 0;
+    while( index < dataBuffer + dataSize && counter < entryCount) {
+        struct WINXP_Entry entry = *(struct WINXP_Entry*)index;
+        if(*(QWORD*)entry.filePath != 0x005C003F003F005C) // "\??\" file prefix 
+        {
+            break;
+        }
+        wcstombs(filePath, (const wchar_t *)(entry.filePath + WINXP_FILE_OFFSET), MAX_PATH + 4);
+        SYSTEMTIME st;    
+        FileTimeToSystemTime(&entry.lastModTime, &st);
+        fprintf(file, "%s;%d/%02d/%02d-%02d:%02d:%02d\n",
+            filePath, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+        index += WINXP_ENTRY_SIZE;        
+        counter++;
+    }
+    fclose(file);
+    return TRUE;
 }
 
 BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
@@ -334,7 +371,7 @@ BOOL parse(PUCHAR dataBuffer, DWORD dataSize)
     {
     case WIN_XP:
         printf("WIN_XP parser\n");
-        ret = parseWinXP(dataBuffer, dataSize);
+        ret = parseWinXP(dataBuffer, dataSize, "AppCompatCache_Win_XP.txt");
         break;
     case WIN_2K3_32:
         printf("WIN_2K3_32 parser\n");
