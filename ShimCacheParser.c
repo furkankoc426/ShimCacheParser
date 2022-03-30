@@ -1,33 +1,29 @@
 #include <stdio.h>
 #include "ShimCacheParser.h"
 
-const DWORD WIN10C_HEADER_SIZE = 0x34;
-const DWORD WIN10C_MAGIC_NUMBER = 0x73743031;
-const DWORD WIN10C_ENTRY_HEADER_SIZE = 0x0C;
-const DWORD WIN10C_ENTRY_LENGTH_OFFSET = 0x08;
-const DWORD WIN10C_PATH_LENGTH_OFFSET = 0x0C;
-const DWORD WIN10C_FILETIME_OFFSET = 0x0E;
-
-const DWORD WIN10_HEADER_SIZE = 0x30;
+// COMMON WIN10
 const DWORD WIN10_MAGIC_NUMBER = 0x73743031;
 const DWORD WIN10_ENTRY_HEADER_SIZE = 0x0C;
 const DWORD WIN10_ENTRY_LENGTH_OFFSET = 0x08;
 const DWORD WIN10_PATH_LENGTH_OFFSET = 0x0C;
 const DWORD WIN10_FILETIME_OFFSET = 0x0E;
 
-const DWORD WIN8_1_HEADER_SIZE = 0x80;
-const DWORD WIN8_1_MAGIC_NUMBER = 0x73743031;
-const DWORD WIN8_1_ENTRY_HEADER_SIZE = 0x0C;
-//const DWORD WIN8_1_ENTRY_LENGTH_OFFSET = 0x08;
-//const DWORD WIN8_1_PATH_LENGTH_OFFSET = 0x0C;
-//const DWORD WIN8_1_FILETIME_OFFSET = 0x0E;
+// SPECIAL 
+const DWORD WIN10_HEADER_SIZE = 0x30;
+const DWORD WIN10_ENTRY_COUNT_OFFSET = 0x18;
+const DWORD WIN10C_HEADER_SIZE = 0x34;
 
-const DWORD WIN8_0_HEADER_SIZE = 0x80;
+// COMMON WIN8
+const DWORD WIN8_HEADER_SIZE = 0x80;
+const DWORD WIN8_ENTRY_HEADER_SIZE = 0x0C;
+const DWORD WIN8_ENTRY_LENGTH_OFFSET = 0x08;
+const DWORD WIN8_PATH_LENGTH_OFFSET = 0x0C;
+const DWORD WIN8_PACKAGE_OFFSET = 0x0E;
+const DWORD WIN8_FILETIME_OFFSET = 0x18;
+
+// SPECIAL 
 const DWORD WIN8_0_MAGIC_NUMBER = 0x73743030;
-const DWORD WIN8_0_ENTRY_HEADER_SIZE = 0x0C;
-//const DWORD WIN8_0_ENTRY_LENGTH_OFFSET = 0x08;
-//const DWORD WIN8_0_PATH_LENGTH_OFFSET = 0x0C;
-//const DWORD WIN8_0_FILETIME_OFFSET = 0x0E;
+const DWORD WIN8_1_MAGIC_NUMBER = 0x73743031;
 
 const DWORD WIN7_HEADER_SIZE = 0x80;
 const DWORD WIN7_MAGIC_NUMBER = 0xBADC0FEE;
@@ -75,52 +71,80 @@ BOOL parseWin7_64(PUCHAR dataBuffer, DWORD dataSize)
 
 }
 
+BOOL parseWin8Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD magicNumber, const char* fileName)
+{
+    FILE * file = fopen(fileName, "w");
+    fprintf(file, "FilePath;LastModifiedTime\n");
+    
+    CHAR filePath[512];
+    PUCHAR index = dataBuffer + WIN8_HEADER_SIZE;
+    while( index < dataBuffer + dataSize) {        
+        if( *((UINT32*)index) != magicNumber) {
+            break;
+        }
+        
+        UINT entryLength = *(UINT*)(index + WIN8_ENTRY_LENGTH_OFFSET);
+        USHORT pathLength = *(USHORT*)(index + WIN8_PATH_LENGTH_OFFSET);
+        wcstombs(filePath, (const wchar_t *) (index + WIN8_PACKAGE_OFFSET), pathLength);
+        USHORT packageLength = *(USHORT*)(index + WIN8_PACKAGE_OFFSET + pathLength);
+        FILETIME filetime = *(FILETIME*)(index + WIN8_FILETIME_OFFSET + pathLength + packageLength);
+        SYSTEMTIME st;    
+        FileTimeToSystemTime(&filetime, &st);
+        fwrite(filePath, pathLength/2, 1, file);
+        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+        index += WIN8_ENTRY_HEADER_SIZE + entryLength;
+    }
+    fclose(file);
+    return TRUE;
+}
+
 BOOL parseWin8_0(PUCHAR dataBuffer, DWORD dataSize)
 {
-
+    return parseWin8Base(dataBuffer, dataSize, WIN8_0_MAGIC_NUMBER, "AppCompatCache_Win_8_0.txt");
 }
 
 BOOL parseWin8_1(PUCHAR dataBuffer, DWORD dataSize)
 {
-
+    return parseWin8Base(dataBuffer, dataSize, WIN8_1_MAGIC_NUMBER, "AppCompatCache_Win_8_1.txt");
 }
 
+BOOL parseWin10Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD headerSize, const char* fileName)
+{
+    FILE * file = fopen(fileName, "w");
+    fprintf(file, "FilePath;LastModifiedTime\n");
+    
+    CHAR filePath[512];
+    PUCHAR index = dataBuffer + headerSize;
+    while( index < dataBuffer + dataSize) {        
+        if( *((UINT32*)index) != WIN10_MAGIC_NUMBER) {
+            break;
+        }
+        
+        UINT entryLength = *(UINT*)(index + WIN10_ENTRY_LENGTH_OFFSET);
+        USHORT pathLength = *(USHORT*)(index + WIN10_PATH_LENGTH_OFFSET);
+        wcstombs(filePath, (const wchar_t *) (index + WIN10_FILETIME_OFFSET), pathLength);
+        FILETIME filetime = *(FILETIME*)(index + WIN10_FILETIME_OFFSET + pathLength);
+        SYSTEMTIME st;    
+        FileTimeToSystemTime(&filetime, &st);
+        fwrite(filePath, pathLength/2, 1, file);
+        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+        index += WIN10_ENTRY_HEADER_SIZE + entryLength;
+    }
+    fclose(file);
+    return TRUE;
+}
+
+// WIN10_ENTRY_COUNT_OFFSET ile toplam entry sayısı kontrol edilebilir.
 BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize)
 {
-    // same parseWin10_C
+    return parseWin10Base(dataBuffer, dataSize, WIN10_HEADER_SIZE, "AppCompatCache_Win_10.txt");
 }
 
 BOOL parseWin10_C(PUCHAR dataBuffer, DWORD dataSize)
 {
-    FILE * file = fopen("AppCompatCache_Win_10C.txt","w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
-    
-    CHAR filePath[512];
-    PUCHAR index = dataBuffer + WIN10C_HEADER_SIZE;
-    while( index < dataBuffer + dataSize) {        
-        if( *((UINT32*)index) != WIN10C_MAGIC_NUMBER) {
-            printf("Magic Number Error. %X\n", *((UINT32*)index));
-        }
-        
-        UINT entryLength = *(UINT*)(index + WIN10C_ENTRY_LENGTH_OFFSET);
-        USHORT pathLength = *(USHORT*)(index + WIN10C_PATH_LENGTH_OFFSET);
-        wcstombs(filePath, (const wchar_t *) (index + WIN10C_FILETIME_OFFSET), pathLength);
-        FILETIME filetime = *(FILETIME*)(index + WIN10C_FILETIME_OFFSET + pathLength);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&filetime, &st);
-        
-        //printf(L"EntryLength: %X\n", entryLength);
-        //printf(L"PathLength: %X\n", pathLength);
-        //printf(L"Filepath: %s\n", filePath);
-        //printf("Filetime: %d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
-        fwrite(filePath, pathLength/2, 1, file);
-        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
-        index += WIN10C_ENTRY_HEADER_SIZE + entryLength;
-    }
-    fclose(file);
-    return TRUE;
+    return parseWin10Base(dataBuffer, dataSize, WIN10C_HEADER_SIZE, "AppCompatCache_Win_10_C.txt");;
 }
 
 enum WINDOWS_VERSION checkVersion(PUCHAR dataBuffer, DWORD dataSize)
@@ -178,12 +202,12 @@ enum WINDOWS_VERSION checkVersion(PUCHAR dataBuffer, DWORD dataSize)
         }
     }
     
-    if(WIN8_0_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN8_0_HEADER_SIZE))
+    if(WIN8_0_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN8_HEADER_SIZE))
     {
         return WIN_8_0;    
     }
     
-    if(WIN8_1_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN8_1_HEADER_SIZE))
+    if(WIN8_1_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN8_HEADER_SIZE))
     {
         return WIN_8_1;    
     }
@@ -193,7 +217,7 @@ enum WINDOWS_VERSION checkVersion(PUCHAR dataBuffer, DWORD dataSize)
         return WIN_10;    
     }
     
-    if(WIN10C_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN10C_HEADER_SIZE))
+    if(WIN10_MAGIC_NUMBER == *(UINT32*)(dataBuffer + WIN10C_HEADER_SIZE))
     {
         return WIN_10_C;
     }
