@@ -27,6 +27,35 @@ const DWORD WIN8_1_MAGIC_NUMBER = 0x73743031;
 
 const DWORD WIN7_HEADER_SIZE = 0x80;
 const DWORD WIN7_MAGIC_NUMBER = 0xBADC0FEE;
+const DWORD WIN7_ENTRY_COUNT_OFFSET = 0x04;
+const DWORD WIN7_FILE_OFFSET = 0x08;
+const DWORD WIN7_32_ENTRY_SIZE = 0x20;
+const DWORD WIN7_64_ENTRY_SIZE = 0x30;
+
+struct WIN7_32_Entry
+{
+    USHORT pathLength;
+	USHORT pathMaxLength;
+	DWORD pathOffset;
+	FILETIME lastModTime;
+	DWORD insertFlags;
+	DWORD shimFlags;
+	DWORD blobSize;
+	DWORD blobOffset;
+};
+
+struct WIN7_64_Entry
+{
+    USHORT pathLength;
+	USHORT pathMaxLength;
+	DWORD padding;
+	QWORD pathOffset;
+	FILETIME lastModTime;
+	DWORD insertFlags;
+	DWORD shimFlags;
+	QWORD blobSize;
+	QWORD blobOffset;
+};
 
 const DWORD WINVISTA_HEADER_SIZE = 0x08;
 const DWORD WINVISTA_MAGIC_NUMBER = 0xBADC0FFE;
@@ -61,17 +90,49 @@ BOOL parseWinVista_64(PUCHAR dataBuffer, DWORD dataSize)
 
 }
 
-BOOL parseWin7_32(PUCHAR dataBuffer, DWORD dataSize)
+BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
+    FILE * file = fopen(fileName, "w");
+    fprintf(file, "FilePath;LastModifiedTime\n");
+    
+    PUCHAR pathOffset;
+    USHORT pathLength; 
+    FILETIME lastModTime;
+    DWORD entrySize = (is32bit ? WIN7_32_ENTRY_SIZE : WIN7_64_ENTRY_SIZE );
 
+    CHAR filePath[512];
+    UINT entryCount = *(UINT*)(dataBuffer + WIN7_ENTRY_COUNT_OFFSET);
+    PUCHAR index = dataBuffer + WIN7_HEADER_SIZE;
+    printf("entryCount: %d\n", entryCount);
+    UINT counter = 0;
+    while( index < dataBuffer + dataSize && counter < entryCount) {
+        if(is32bit)
+        {
+            struct WIN7_32_Entry entry = *(struct WIN7_32_Entry*)index;
+            lastModTime = entry.lastModTime;
+            pathLength = entry.pathLength - WIN7_FILE_OFFSET;
+            pathOffset = dataBuffer + WIN7_FILE_OFFSET + entry.pathOffset;
+        }
+        else
+        {
+            struct WIN7_64_Entry entry = *(struct WIN7_64_Entry*)index;
+            lastModTime = entry.lastModTime;
+            pathLength = entry.pathLength - WIN7_FILE_OFFSET;
+            pathOffset = dataBuffer + WIN7_FILE_OFFSET + entry.pathOffset;
+        }
+
+        wcstombs(filePath, (const wchar_t *)pathOffset, pathLength);
+        SYSTEMTIME st;    
+        FileTimeToSystemTime(&lastModTime, &st);
+        fwrite(filePath, pathLength/2, 1, file);
+        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+        index += entrySize;        
+        counter++;
+    }
 }
 
-BOOL parseWin7_64(PUCHAR dataBuffer, DWORD dataSize)
-{
-
-}
-
-BOOL parseWin8Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD magicNumber, const char* fileName)
+BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD magicNumber)
 {
     FILE * file = fopen(fileName, "w");
     fprintf(file, "FilePath;LastModifiedTime\n");
@@ -87,9 +148,9 @@ BOOL parseWin8Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD magicNumber, c
         USHORT pathLength = *(USHORT*)(index + WIN8_PATH_LENGTH_OFFSET);
         wcstombs(filePath, (const wchar_t *) (index + WIN8_PACKAGE_OFFSET), pathLength);
         USHORT packageLength = *(USHORT*)(index + WIN8_PACKAGE_OFFSET + pathLength);
-        FILETIME filetime = *(FILETIME*)(index + WIN8_FILETIME_OFFSET + pathLength + packageLength);
+        FILETIME lastModTime = *(FILETIME*)(index + WIN8_FILETIME_OFFSET + pathLength + packageLength);
         SYSTEMTIME st;    
-        FileTimeToSystemTime(&filetime, &st);
+        FileTimeToSystemTime(&lastModTime, &st);
         fwrite(filePath, pathLength/2, 1, file);
         fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
@@ -99,17 +160,8 @@ BOOL parseWin8Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD magicNumber, c
     return TRUE;
 }
 
-BOOL parseWin8_0(PUCHAR dataBuffer, DWORD dataSize)
-{
-    return parseWin8Base(dataBuffer, dataSize, WIN8_0_MAGIC_NUMBER, "AppCompatCache_Win_8_0.txt");
-}
-
-BOOL parseWin8_1(PUCHAR dataBuffer, DWORD dataSize)
-{
-    return parseWin8Base(dataBuffer, dataSize, WIN8_1_MAGIC_NUMBER, "AppCompatCache_Win_8_1.txt");
-}
-
-BOOL parseWin10Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD headerSize, const char* fileName)
+// WIN10_ENTRY_COUNT_OFFSET ile toplam entry sayısı kontrol edilebilir.
+BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD headerSize)
 {
     FILE * file = fopen(fileName, "w");
     fprintf(file, "FilePath;LastModifiedTime\n");
@@ -124,9 +176,9 @@ BOOL parseWin10Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD headerSize, c
         UINT entryLength = *(UINT*)(index + WIN10_ENTRY_LENGTH_OFFSET);
         USHORT pathLength = *(USHORT*)(index + WIN10_PATH_LENGTH_OFFSET);
         wcstombs(filePath, (const wchar_t *) (index + WIN10_FILETIME_OFFSET), pathLength);
-        FILETIME filetime = *(FILETIME*)(index + WIN10_FILETIME_OFFSET + pathLength);
+        FILETIME lastModTime = *(FILETIME*)(index + WIN10_FILETIME_OFFSET + pathLength);
         SYSTEMTIME st;    
-        FileTimeToSystemTime(&filetime, &st);
+        FileTimeToSystemTime(&lastModTime, &st);
         fwrite(filePath, pathLength/2, 1, file);
         fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
@@ -134,17 +186,6 @@ BOOL parseWin10Base(PUCHAR dataBuffer, DWORD dataSize, const DWORD headerSize, c
     }
     fclose(file);
     return TRUE;
-}
-
-// WIN10_ENTRY_COUNT_OFFSET ile toplam entry sayısı kontrol edilebilir.
-BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize)
-{
-    return parseWin10Base(dataBuffer, dataSize, WIN10_HEADER_SIZE, "AppCompatCache_Win_10.txt");
-}
-
-BOOL parseWin10_C(PUCHAR dataBuffer, DWORD dataSize)
-{
-    return parseWin10Base(dataBuffer, dataSize, WIN10C_HEADER_SIZE, "AppCompatCache_Win_10_C.txt");;
 }
 
 enum WINDOWS_VERSION checkVersion(PUCHAR dataBuffer, DWORD dataSize)
@@ -252,27 +293,27 @@ BOOL parse(PUCHAR dataBuffer, DWORD dataSize)
         break;
     case WIN_7_32:
         printf("WIN_7_32 parser\n");
-        ret = parseWin7_32(dataBuffer, dataSize);
+        ret = parseWin7(dataBuffer, dataSize, "AppCompatCache_Win_7_32.txt", TRUE);
         break;
     case WIN_7_64:
         printf("WIN_7_64 parser\n");
-        ret = parseWin7_64(dataBuffer, dataSize);
+        ret = parseWin7(dataBuffer, dataSize, "AppCompatCache_Win_7_64.txt", FALSE);
         break;
     case WIN_8_0:
         printf("WIN_8_0 parser\n");
-        ret = parseWin8_0(dataBuffer, dataSize);
+        ret = parseWin8(dataBuffer, dataSize, "AppCompatCache_Win_8_0.txt", WIN8_0_MAGIC_NUMBER);
         break;
     case WIN_8_1:
         printf("WIN_8_1 parser\n");
-        ret = parseWin8_1(dataBuffer, dataSize);
+        ret = parseWin8(dataBuffer, dataSize, "AppCompatCache_Win_8_1.txt", WIN8_1_MAGIC_NUMBER);
         break;
     case WIN_10:
         printf("WIN_10 parser\n");
-        ret = parseWin10(dataBuffer, dataSize);
+        ret = parseWin10(dataBuffer, dataSize, "AppCompatCache_Win_10.txt", WIN10_HEADER_SIZE);
         break;
     case WIN_10_C:
         printf("WIN_10_C parser\n");
-        ret = parseWin10_C(dataBuffer, dataSize);
+        ret = parseWin10(dataBuffer, dataSize, "AppCompatCache_Win_10_C.txt", WIN10C_HEADER_SIZE);
         break;
     default:
         break;
