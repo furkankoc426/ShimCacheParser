@@ -5,6 +5,7 @@
 typedef unsigned long long QWORD; 
 
 static const UCHAR * APPCOMPATCACHE_PATH = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatCache";
+static const UCHAR * APPCOMPATCACHE_PATH_XP = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatibility";
 static const UCHAR * APPCOMPATCACHE_NAME = "AppCompatCache";
 
 enum WINDOWS_VERSION 

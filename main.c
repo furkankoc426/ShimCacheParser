@@ -2,11 +2,12 @@
 #include <windows.h>
 #include "ShimCacheParser.h"
 
-int main(int argc, char *argv[]) {
-
+int main(int argc, char *argv[]) 
+{
+    FILE * file;
     DWORD dataSize = 512 * 1024;
     PUCHAR dataBuffer = malloc(dataSize);
-#if 0
+#if 1
     HKEY hKey = NULL;
     LONG lResult = RegOpenKeyEx (HKEY_LOCAL_MACHINE, APPCOMPATCACHE_PATH, 0, KEY_READ, &hKey);
     if (lResult != ERROR_SUCCESS) 
@@ -30,14 +31,14 @@ int main(int argc, char *argv[]) {
     }
 
 #if 0
-    FILE * file = fopen("AppCompatCache.bin","wb");
+    file = fopen("AppCompatCache.bin","wb");
     fwrite(dataBuffer, dataSize, 1, file);
     fclose(file);
 #endif
-#endif
-
-    FILE * file = fopen(argv[1], "rb");  // r for read, b for binary
+#else
+    file = fopen(argv[1], "rb");  // r for read, b for binary
     dataSize = fread(dataBuffer, 1, dataSize, file);
+#endif
 
     printf("%d %s\n", dataSize, dataBuffer);
     parse(dataBuffer, dataSize);

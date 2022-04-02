@@ -1,4 +1,6 @@
+#include <time.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include "ShimCacheParser.h"
 
 // COMMON WIN10
@@ -109,10 +111,67 @@ struct WINXP_Entry
 const DWORD WIN2K3_32_FILESIZE_OFFSET = 0x10;
 const DWORD WIN2K3_64_FILESIZE_OFFSET = 0x18;
 
+void GetErrorMessage()
+{
+    CHAR buffer[1024];
+    DWORD dwErrorCode = GetLastError();
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                 NULL,  /* (not used with FORMAT_MESSAGE_FROM_SYSTEM) */
+                                 dwErrorCode,
+                                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                 buffer,
+                                 1024,
+                                 NULL);
+    printf("%s\n", buffer);
+}
+
+time_t filetime_to_timet(FILETIME ft)  
+{
+    ULARGE_INTEGER ull;
+    ull.LowPart = ft.dwLowDateTime;
+    ull.HighPart = ft.dwHighDateTime;   
+    return ull.QuadPart / 10000000ULL - 11644473600ULL;  
+}
+
+void insertFileTime(FILE * file, CHAR * filePath, time_t lastModTime)
+{
+    CHAR buffer[32];
+    struct tm * tp;
+    struct stat status;
+    int exist = stat(filePath, &status);
+    
+    if(exist != 0)
+    {
+        fprintf(file, "0 B;\t"); // File Size
+        tp = localtime(&lastModTime);
+        strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
+        fprintf(file, "%s;\t", buffer); 
+        fprintf(file, ";\t;\t;\t"); // Modified, Accesse, Created
+        printf("%s -> ", filePath);
+        GetErrorMessage();
+    }
+    else
+    {
+        fprintf(file, "%d B;\t", status.st_size); // File Size
+        tp = localtime(&lastModTime);
+        strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
+        fprintf(file, "%s;\t", buffer); 
+        tp = localtime(&status.st_mtime);
+        strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
+        fprintf(file, "%s;\t", buffer); 
+        tp = localtime(&status.st_atime);
+        strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
+        fprintf(file, "%s;\t", buffer); 
+        tp = localtime(&status.st_ctime);
+        strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
+        fprintf(file, "%s;\t", buffer); 
+    }  
+}
+
 BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
 {
     FILE * file = fopen(fileName, "w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
+    fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
 
     CHAR filePath[512];
     UINT entryCount = *(UINT*)(dataBuffer + WINXP_ENTRY_COUNT_OFFSET);
@@ -126,13 +185,14 @@ BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
             break;
         }
         wcstombs(filePath, (const wchar_t *)(entry.filePath + WINXP_FILE_OFFSET), MAX_PATH + 4);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&entry.lastModTime, &st);
-        fprintf(file, "%s;%d/%02d/%02d-%02d:%02d:%02d\n",
-            filePath, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
         index += WINXP_ENTRY_SIZE;        
         counter++;
+        
+        fprintf(file, "%s;\t", filePath);
+        fprintf(file, ";\t"); // cached file size
+        insertFileTime(file, filePath, filetime_to_timet(entry.lastModTime));
+        fprintf(file, ";\t"); // executed flag
+        fprintf(file, "%s\n", APPCOMPATCACHE_PATH_XP);
     }
     fclose(file);
     return TRUE;
@@ -141,7 +201,7 @@ BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
 BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
     FILE * file = fopen(fileName, "w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
+    fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     PUCHAR pathOffset;
     USHORT pathLength; 
@@ -170,13 +230,14 @@ BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL
         }
 
         wcstombs(filePath, (const wchar_t *)pathOffset, pathLength);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&lastModTime, &st);
-        fwrite(filePath, pathLength/2, 1, file);
-        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
         index += entrySize;        
         counter++;
+        
+        fprintf(file, "%s;\t", filePath);
+        fprintf(file, ";\t"); // cached file size
+        insertFileTime(file, filePath, filetime_to_timet(lastModTime));
+        fprintf(file, ";\t"); // executed flag
+        fprintf(file, "%s\n", APPCOMPATCACHE_PATH);
     }
     fclose(file);
     return TRUE;
@@ -185,7 +246,7 @@ BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL
 BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
     FILE * file = fopen(fileName, "w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
+    fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     PUCHAR pathOffset;
     USHORT pathLength; 
@@ -214,13 +275,14 @@ BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is3
         }
 
         wcstombs(filePath, (const wchar_t *)pathOffset, pathLength);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&lastModTime, &st);
-        fwrite(filePath, pathLength/2, 1, file);
-        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
         index += entrySize;        
         counter++;
+
+        fprintf(file, "%s;\t", filePath);
+        fprintf(file, ";\t"); // cached file size
+        insertFileTime(file, filePath, filetime_to_timet(lastModTime));
+        fprintf(file, ";\t"); // executed flag
+        fprintf(file, "%s\n", APPCOMPATCACHE_PATH);
     }
     fclose(file);
     return TRUE;
@@ -229,7 +291,7 @@ BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is3
 BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD magicNumber)
 {
     FILE * file = fopen(fileName, "w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
+    fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     CHAR filePath[512];
     PUCHAR index = dataBuffer + WIN8_HEADER_SIZE;
@@ -243,12 +305,13 @@ BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DW
         wcstombs(filePath, (const wchar_t *) (index + WIN8_PACKAGE_OFFSET), pathLength);
         USHORT packageLength = *(USHORT*)(index + WIN8_PACKAGE_OFFSET + pathLength);
         FILETIME lastModTime = *(FILETIME*)(index + WIN8_FILETIME_OFFSET + pathLength + packageLength);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&lastModTime, &st);
-        fwrite(filePath, pathLength/2, 1, file);
-        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
         index += WIN8_ENTRY_HEADER_SIZE + entryLength;
+        
+        fprintf(file, "%s;\t", filePath);
+        fprintf(file, ";\t"); // cached file size
+        insertFileTime(file, filePath, filetime_to_timet(lastModTime));
+        fprintf(file, ";\t"); // executed flag
+        fprintf(file, "%s\n", APPCOMPATCACHE_PATH);
     }
     fclose(file);
     return TRUE;
@@ -258,7 +321,7 @@ BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DW
 BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD headerSize)
 {
     FILE * file = fopen(fileName, "w");
-    fprintf(file, "FilePath;LastModifiedTime\n");
+    fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     CHAR filePath[512];
     PUCHAR index = dataBuffer + headerSize;
@@ -270,13 +333,15 @@ BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const D
         UINT entryLength = *(UINT*)(index + WIN10_ENTRY_LENGTH_OFFSET);
         USHORT pathLength = *(USHORT*)(index + WIN10_PATH_LENGTH_OFFSET);
         wcstombs(filePath, (const wchar_t *) (index + WIN10_FILETIME_OFFSET), pathLength);
+        filePath[pathLength/2] = 0;
         FILETIME lastModTime = *(FILETIME*)(index + WIN10_FILETIME_OFFSET + pathLength);
-        SYSTEMTIME st;    
-        FileTimeToSystemTime(&lastModTime, &st);
-        fwrite(filePath, pathLength/2, 1, file);
-        fprintf(file, ";%d/%02d/%02d-%02d:%02d:%02d\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
         index += WIN10_ENTRY_HEADER_SIZE + entryLength;
+
+        fprintf(file, "%s;\t", filePath);
+        fprintf(file, ";\t"); // cached file size
+        insertFileTime(file, filePath, filetime_to_timet(lastModTime));
+        fprintf(file, ";\t"); // executed flag
+        fprintf(file, "%s\n", APPCOMPATCACHE_PATH);
     }
     fclose(file);
     return TRUE;
