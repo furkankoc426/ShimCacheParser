@@ -10,13 +10,15 @@ const DWORD WIN10_ENTRY_LENGTH_OFFSET = 0x08;
 const DWORD WIN10_PATH_LENGTH_OFFSET = 0x0C;
 const DWORD WIN10_FILETIME_OFFSET = 0x0E;
 
-struct WIN10_DUMMY_Entry
+/*
+struct WIN10_Entry
 {
     DWORD entryLength;
     USHORT pathLength;
-    WCHAR * filePath;
+    CHAR filePath[pathLength]; 
     FILETIME lastModTime;
 };
+*/
 
 // SPECIAL 
 const DWORD WIN10_HEADER_SIZE = 0x30;
@@ -32,16 +34,18 @@ const DWORD WIN8_PACKAGE_OFFSET = 0x0E;
 const DWORD WIN8_FLAG_OFFSET = 0x10;
 const DWORD WIN8_FILETIME_OFFSET = 0x18;
 
-struct WIN8_DUMMY_Entry
+/*
+struct WIN8_Entry
 {
     DWORD entryLength;
     USHORT pathLength;
-    WCHAR * filePath;
+    CHAR filePath[pathLength]; 
     USHORT packageLength;
-    WCHAR * package;
+    CHAR package[packageLength];
     DWORD insertFlags;
     FILETIME lastModTime;
 };
+*/
 
 // SPECIAL 
 const DWORD WIN8_0_MAGIC_NUMBER = 0x73743030;
@@ -466,7 +470,7 @@ BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const D
         filePath[pathLength/2] = 0;
         FILETIME lastModTime = *(FILETIME*)(index + WIN10_FILETIME_OFFSET + pathLength);
         index += WIN10_ENTRY_HEADER_SIZE + entryLength;
-
+    
         fprintf(file, "%s;\t", filePath);
         fprintf(file, "None;\t"); // cached file size
         insertFileTime(file, filePath, filetime_to_timet(lastModTime));
