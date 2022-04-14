@@ -206,8 +206,8 @@ struct WIN10_Entry
 |   Win2k3 (64 bit)   |   8 byte    | 0xBADC0FFE |  32 byte   |       512       |
 | Vista/2k8 (32 bit)  |   8 byte    | 0xBADC0FFE |  24 byte   |      1024       |
 | Vista/2k8 (64 bit)  |   8 byte    | 0xBADC0FFE |  32 byte   |      1024       |
-| Win7/2k8R2 (32 bit) |  128 byte   | 0xBADC0FFE |  32 byte   |      1024       |
-| Win7/2k8R2 (64 bit) |  128 byte   | 0xBADC0FFE |  48 byte   |      1024       |
+| Win7/2k8R2 (32 bit) |  128 byte   | 0xBADC0FEE |  32 byte   |      1024       |
+| Win7/2k8R2 (64 bit) |  128 byte   | 0xBADC0FEE |  48 byte   |      1024       |
 |    Win8 (64 bit)    |  128 byte   | 0x73743030 |   x byte   |      1024       |
 |   Win8.1 (64 bit)   |  128 byte   | 0x73743031 |   x byte   |      1024       |
 |   Win10 (64 bit)    |   48 byte   | 0x73743031 |   x byte   |      1024       |
