@@ -206,7 +206,7 @@ void insertFileTime(FILE * file, CHAR * filePath, time_t lastModTime)
     }
     else
     {
-        fprintf(file, "%d B;\t", status.st_size); // File Size
+        fprintf(file, "%ld B;\t", status.st_size); // File Size
         tp = localtime(&lastModTime);
         strftime(buffer, 32, "%Y/%m/%d-%H:%M:%S", tp);
         fprintf(file, "%s;\t", buffer); 
@@ -225,6 +225,10 @@ void insertFileTime(FILE * file, CHAR * filePath, time_t lastModTime)
 BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }   
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
 
     CHAR filePath[512];
@@ -255,6 +259,10 @@ BOOL parseWinXP(PUCHAR dataBuffer, DWORD dataSize, const char* fileName)
 BOOL parseWin2K3(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     PUCHAR pathOffset;
@@ -304,6 +312,10 @@ BOOL parseWin2K3(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL i
 BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     PUCHAR pathOffset;
@@ -360,6 +372,10 @@ BOOL parseWinVista(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL
 BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is32bit)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     PUCHAR pathOffset;
@@ -416,6 +432,10 @@ BOOL parseWin7(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, BOOL is3
 BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD magicNumber)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     CHAR filePath[512];
@@ -455,6 +475,10 @@ BOOL parseWin8(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DW
 BOOL parseWin10(PUCHAR dataBuffer, DWORD dataSize, const char* fileName, const DWORD headerSize)
 {
     FILE * file = fopen(fileName, "w");
+    if (file == NULL) {
+        printf("Error opening file: %s\n", fileName);
+        return FALSE;
+    }
     fprintf(file, "FilePath;\tCached File Size;\t File Size;\t Cached Modified;\tModified;\tAccessed;\tCreated;\tExecuted;\tKey Path\n");
     
     CHAR filePath[512];

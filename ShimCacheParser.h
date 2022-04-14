@@ -4,9 +4,9 @@
 #include <windows.h>
 typedef unsigned long long QWORD; 
 
-static const UCHAR * APPCOMPATCACHE_PATH = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatCache";
-static const UCHAR * APPCOMPATCACHE_PATH_XP = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatibility";
-static const UCHAR * APPCOMPATCACHE_NAME = "AppCompatCache";
+static LPCSTR APPCOMPATCACHE_PATH = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatCache";
+static LPCSTR APPCOMPATCACHE_PATH_XP = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatibility";
+static LPCSTR APPCOMPATCACHE_NAME = "AppCompatCache";
 
 enum WINDOWS_VERSION 
 {
